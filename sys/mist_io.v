@@ -48,8 +48,8 @@ module mist_io #(parameter STRLEN=0, parameter PS2DIV=100)
 	output            SPI_DO,
 	input             SPI_DI,
 
-	output reg  [7:0] joystick_0,
-	output reg  [7:0] joystick_1,
+	output reg [31:0] joystick_0,
+	output reg [31:0] joystick_1,
 	output reg [15:0] joystick_analog_0,
 	output reg [15:0] joystick_analog_1,
 	output      [1:0] buttons,
@@ -231,8 +231,8 @@ always@(posedge clk_sys) begin
 			case(cmd)
 				// buttons and switches
 				8'h01: but_sw <= spi_data_in; 
-				8'h02: joystick_0 <= spi_data_in;
-				8'h03: joystick_1 <= spi_data_in;
+				8'h60: if (byte_cnt < 6) joystick_0[(byte_cnt-2)<<3 +:8] <= spi_data_in;
+				8'h61: if (byte_cnt < 6) joystick_1[(byte_cnt-2)<<3 +:8] <= spi_data_in;
 
 				// store incoming ps2 mouse bytes 
 				8'h04: begin
