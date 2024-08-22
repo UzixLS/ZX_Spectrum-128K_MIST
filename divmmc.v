@@ -50,12 +50,11 @@ always @(posedge clk_sys) begin
 end
 
 // SPI handling
+wire      port_cs_div = ((mode[1]      ) && (addr[7:0] == 8'hE7));
+wire      port_cs_zc  = ((mode == 2'b01) && (addr[7:0] == 8'h77));
+wire      port_io    = ((mode[1]      ) && (addr[7:0] == 8'hEB)) ||
+                       ((mode == 2'b01) && (addr[7:0] == 8'h57));
 assign    active_io   = port_io;
-
-wire      port_cs = ((mode[0]      ) && (addr[7:0] == 8'hE7)) ||
-                    ((mode == 2'b10) && (addr[7:0] == 8'h1F));
-wire      port_io = ((mode[0]      ) && (addr[7:0] == 8'hEB)) ||
-                    ((mode == 2'b10) && (addr[7:0] == 8'h3F));
 
 reg       tx_strobe;
 reg       rx_strobe;
@@ -70,7 +69,8 @@ always @(posedge clk_sys) begin
 	if(enable) begin
 
 		if(io_we & ~old_we) begin
-			if (port_cs) spi_ss <= din[0];                          // SPI enable
+			if (port_cs_div) spi_ss <= din[0];                      // SPI enable
+			if (port_cs_zc) spi_ss <= din[1] | ~din[0];             // SPI enable
 			if (port_io) tx_strobe <= 1'b1;                         // SPI write
 		end
 

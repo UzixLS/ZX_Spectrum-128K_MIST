@@ -89,7 +89,7 @@ localparam CONF_STR = {
 	"O6,Fast tape load,On,Off;",
 	"OFG,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"ODE,Features,ULA+ & Timex,ULA+,Timex,None;",
-	"OHI,MMC Card,Off,divMMC,ZXMMC,divMMC+ESXDOS;",
+	"OHI,MMC Card,Off,Z-Controller,divMMC,divMMC+ESXDOS;",
 	"OKL,General Sound,512KB,1MB,2MB,Disabled;",
 	"O5,Keyboard,Issue 3,Issue 2;",
 	"O7,Snowing,Enabled,Unrained;",
@@ -936,7 +936,7 @@ divmmc divmmc
 	.*,
 	.enable(1),
 	.disable_pagein(tape_loaded),
-	.mode(st_mmc), //00-off, 01-divmmc, 10-zxmmc, 11-divmmc+esxdos
+	.mode(st_mmc), //00-off, 01-z-controller, 10-divmmc, 11-divmmc+esxdos
 	.din(cpu_dout),
 	.dout(mmc_dout),
 	.active_io(mmc_sel),
