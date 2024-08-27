@@ -325,18 +325,19 @@ T80pa cpu
 );
 
 always_comb begin
-	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel | fdd_sel2 | plus3_fdd, mf3_port, mmc_sel, addr[5:0]==6'h1F, portBF, gs_sel, psg_enable, ulap_sel, addr[0]})
-		'b01XXXXXXXXXX: cpu_din = tape_dout;
-		'b00XXXXXXXXXX: cpu_din = ram_dout;
-		'b1X01XXXXXXXX: cpu_din = fdd_dout;
-		'b1X001XXXXXXX: cpu_din = (addr[14:13] == 2'b11 ? page_reg : page_reg_plus3);
-		'b1X0001XXXXXX: cpu_din = mmc_dout;
-		'b1X00001XXXXX: cpu_din = mouse_sel ? mouse_data : joy_kempston;
-		'b1X000001XXXX: cpu_din = {page_scr_copy, 7'b1111111};
-		'b1X0000001XXX: cpu_din = gs_dout;
-		'b1X00000001XX: cpu_din = (addr[14] ? sound_data : 8'hFF);
-		'b1X000000001X: cpu_din = ulap_dout;
-		'b1X0000000000: cpu_din = {1'b1, ula_tape_in, 1'b1, key_data[4:0] & joy_kbd};
+	casex({nMREQ, tape_dout_en, ~nM1 | nIORQ | nRD, fdd_sel | fdd_sel2 | plus3_fdd, mf3_port, mmc_sel, addr[5:0]==6'h1F, portBF, gs_sel, psg_enable, ulap_sel, wifi_dout_oe, addr[0]})
+		'b01XXXXXXXXXXX: cpu_din = tape_dout;
+		'b00XXXXXXXXXXX: cpu_din = ram_dout;
+		'b1X01XXXXXXXXX: cpu_din = fdd_dout;
+		'b1X001XXXXXXXX: cpu_din = (addr[14:13] == 2'b11 ? page_reg : page_reg_plus3);
+		'b1X0001XXXXXXX: cpu_din = mmc_dout;
+		'b1X00001XXXXXX: cpu_din = mouse_sel ? mouse_data : joy_kempston;
+		'b1X000001XXXXX: cpu_din = {page_scr_copy, 7'b1111111};
+		'b1X0000001XXXX: cpu_din = gs_dout;
+		'b1X00000001XXX: cpu_din = (addr[14] ? sound_data : 8'hFF);
+		'b1X000000001XX: cpu_din = ulap_dout;
+		'b1X0000000001X: cpu_din = wifi_dout;
+		'b1X00000000000: cpu_din = {1'b1, ula_tape_in, 1'b1, key_data[4:0] & joy_kbd};
 		default: cpu_din = port_ff;
 	endcase
 end
@@ -793,7 +794,7 @@ sigma_delta_dac #(14) dac_l
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({~gs_l[14], gs_l[13:0]} + {1'd0, psg_left, 3'd0} + {2'd0, sd_l0, 4'd0} + {2'd0, sd_l1, 4'd0} + {2'd0, ear_out, mic_out, tape_in, 10'd0}),
+	.DACin({~gs_l[14], gs_l[13:0]} + {1'd0, psg_left, 3'd0} + {2'd0, sd_l0, 4'd0} + {2'd0, sd_l1, 4'd0} + {2'd0, ear_out, mic_out, tape_in & !wifi_in_use, 10'd0}),
 	.DACout(AUDIO_L)
 );
 
@@ -801,7 +802,7 @@ sigma_delta_dac #(14) dac_r
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin({~gs_r[14], gs_r[13:0]} + {1'd0, psg_right, 3'd0} + {2'd0, sd_r0, 4'd0} + {2'd0, sd_r1, 4'd0} + {2'd0, ear_out, mic_out, tape_in, 10'd0}),
+	.DACin({~gs_r[14], gs_r[13:0]} + {1'd0, psg_right, 3'd0} + {2'd0, sd_r0, 4'd0} + {2'd0, sd_r1, 4'd0} + {2'd0, ear_out, mic_out, tape_in & !wifi_in_use, 10'd0}),
 	.DACout(AUDIO_R)
 );
 
@@ -1259,10 +1260,40 @@ snap_loader #(ARCH_ZX48, ARCH_ZX128, ARCH_ZX3, ARCH_P128) snap_loader
 	.reg_7ffd(snap_7ffd)
 );
 
+//////////////////  WiFi  //////////////////
+wire [7:0] wifi_dout;
+wire wifi_dout_oe;
+wire wifi_tx;
+unouart #( .CLK(112_000_000), .BPS(115200) ) unouart0(
+	.clk(clk_sys),
+	.rst_n(~reset),
+	.nWR(nWR),
+	.nRD(nRD),
+	.nIORQ(nIORQ),
+	.addr(addr),
+	.din(cpu_dout),
+	.dout(wifi_dout),
+	.oe(wifi_dout_oe),
+	.uart_rx(UART_RX),
+	.uart_tx(wifi_tx)
+);
+
+reg VSync_old = 1'b0;
+always @(posedge clk_sys)
+	VSync_old <= VSync;
+reg [4:0] wifi_in_use = 1'b0;
+always @(posedge clk_sys) begin
+	if (wifi_dout_oe)
+		wifi_in_use <= 1'd1;
+	else if (wifi_in_use && VSync && !VSync_old)
+		wifi_in_use <= wifi_in_use + 1'd1;
+end
+
 //////////////////  UART_TX  //////////////////
 reg uart_tx = 1'b1;
 reg mic_out_old = 1'b0;
 reg midi_out_old = 1'b0;
+reg wifi_tx_old = 1'b0;
 
 always @(posedge clk_sys) begin
 	if (mic_out_old != mic_out) begin
@@ -1272,6 +1303,10 @@ always @(posedge clk_sys) begin
 	if (midi_out_old != midi_out) begin
 		midi_out_old <= midi_out;
 		uart_tx <= midi_out;
+	end
+	if (wifi_tx_old != wifi_tx) begin
+		wifi_tx_old <= wifi_tx;
+		uart_tx <= wifi_tx;
 	end
 end
 
