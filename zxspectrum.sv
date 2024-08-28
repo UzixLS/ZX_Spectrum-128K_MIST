@@ -77,7 +77,7 @@ localparam ARCH_P1024 = 5'b001_10; // Pentagon 1024
 
 `include "build_id.v"
 localparam CONF_STR = {
-	"SPECTRUM;;",
+	"SPECTRUM_EL;;",
 	"S1U,TRDIMGDSKMGT,Load Disk;",
 	"F,TAPCSWTZX,Load Tape;",
 	"F,Z80SNA,Load Snapshot;",
@@ -94,7 +94,7 @@ localparam CONF_STR = {
 	"O5,Keyboard,Issue 3,Issue 2;",
 	"O7,Snowing,Enabled,Unrained;",
 	"T0,Reset;",
-	"V,v3.40.",`BUILD_DATE
+	"V,v",`BUILD_DATE
 };
 
 wire [2:0] st_cpu_freq    = status[24:22];
