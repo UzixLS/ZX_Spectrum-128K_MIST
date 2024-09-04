@@ -337,7 +337,7 @@ always_comb begin
 		'b1X00000001XXX: cpu_din = (addr[14] ? sound_data : 8'hFF);
 		'b1X000000001XX: cpu_din = ulap_dout;
 		'b1X0000000001X: cpu_din = wifi_dout;
-		'b1X00000000000: cpu_din = {1'b1, ula_tape_in, 1'b1, key_data[4:0] & joy_kbd};
+		'b1X00000000000: cpu_din = {1'b1, ula_tape_in, 1'b1, key_data[4:0] & joy_kbd & rst_kbd};
 		default: cpu_din = port_ff;
 	endcase
 end
@@ -388,6 +388,16 @@ always @(posedge clk_sys) begin
 	else if (~NMI_old & NMI) NMI_pending <= 1;
 	else if (~m1 && old_m1 && (addr == 'h66)) NMI_pending <= 0;
 end
+
+// To reset esxDOS on cold reset we need to hold Space key
+reg [5:0] esxdos_reset_cnt = 0;
+always @(posedge clk_sys) begin
+	if (cold_reset && st_mmc == 2'b11)
+		esxdos_reset_cnt <= 1'd1;
+	else if (esxdos_reset_cnt && VSync && !VSync_old)
+		esxdos_reset_cnt <= esxdos_reset_cnt + 1'd1;
+end
+wire [4:0] rst_kbd = {5{addr[15]}} | {4'b1111, ~|esxdos_reset_cnt};
 
 //////////////////   MEMORY   //////////////////
 wire        dma = (reset | ~nBUSACK) & ~nBUSRQ;
@@ -835,6 +845,10 @@ wire       tmx_avail = ~status[13] & ~trdos_en;
 wire       snow_ena = &turbo & ~plus3 & ~unrainer;
 wire       ula_nWR;
 
+reg VSync_old = 1'b0;
+always @(posedge clk_sys)
+	VSync_old <= VSync;
+
 ULA ULA(.*, .nPortRD(), .nPortWR(ula_nWR), .din(cpu_dout), .page_ram(page_ram[2:0]));
 
 video_mixer #(.LINE_LENGTH(896), .HALF_DEPTH(1)) video_mixer
@@ -1278,9 +1292,6 @@ unouart #( .CLK(112_000_000), .BPS(115200) ) unouart0(
 	.uart_tx(wifi_tx)
 );
 
-reg VSync_old = 1'b0;
-always @(posedge clk_sys)
-	VSync_old <= VSync;
 reg [4:0] wifi_in_use = 1'b0;
 always @(posedge clk_sys) begin
 	if (wifi_dout_oe)
